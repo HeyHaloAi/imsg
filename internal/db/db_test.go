@@ -111,7 +111,6 @@ func newTempDiskDB(t *testing.T) (string, func()) {
 }
 
 func bodyBlob(s string) []byte {
-
 	return append(append([]byte{0x01, 0x2b}, []byte(s)...), 0x86, 0x84)
 }
 
@@ -144,6 +143,8 @@ func TestOpenSeesLiveUpdates(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Open: %v", err)
 	}
+	reader.SetMaxOpenConns(1)
+	reader.SetMaxIdleConns(1)
 	defer func() { _ = reader.Close() }()
 
 	count := func(db *sql.DB) int {
