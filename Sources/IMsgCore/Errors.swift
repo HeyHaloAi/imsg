@@ -4,8 +4,10 @@ public enum IMsgError: LocalizedError, Sendable {
   case permissionDenied(path: String, underlying: Error)
   case invalidISODate(String)
   case invalidService(String)
+  case invalidSendMode(String)
   case invalidChatTarget(String)
   case replyToNotSupported(String)
+  case privateApiFailure(String)
   case appleScriptFailure(String)
 
   public var errorDescription: String? {
@@ -31,10 +33,14 @@ public enum IMsgError: LocalizedError, Sendable {
       return "Invalid ISO8601 date: \(value)"
     case .invalidService(let value):
       return "Invalid service: \(value)"
+    case .invalidSendMode(let value):
+      return "Invalid send mode: \(value)"
     case .invalidChatTarget(let value):
       return "Invalid chat target: \(value)"
     case .replyToNotSupported(let value):
       return "Reply-to not supported: \(value)"
+    case .privateApiFailure(let value):
+      return "Private API failure: \(value)"
     case .appleScriptFailure(let message):
       return "AppleScript failed: \(message)"
     }

@@ -19,6 +19,9 @@ enum SendCommand {
           .make(
             label: "replyToGUID", names: [.long("reply-to-guid")],
             help: "reply to message guid (not supported by AppleScript)"),
+          .make(
+            label: "mode", names: [.long("mode")],
+            help: "send mode: applescript|imcore|auto"),
           .make(label: "text", names: [.long("text")], help: "message body"),
           .make(label: "file", names: [.long("file")], help: "path to attachment"),
           .make(
@@ -33,6 +36,7 @@ enum SendCommand {
       "imsg send --to +14155551212 --text \"hi\"",
       "imsg send --to +14155551212 --text \"hi\" --file ~/Desktop/pic.jpg --service imessage",
       "imsg send --chat-id 1 --text \"hi\"",
+      "IMSG_ALLOW_PRIVATE=1 imsg send --mode imcore --reply-to-guid <guid> --text \"hi\"",
     ]
   ) { values, runtime in
     try await run(values: values, runtime: runtime)
@@ -50,15 +54,17 @@ enum SendCommand {
     let chatIdentifier = values.option("chatIdentifier") ?? ""
     let chatGUID = values.option("chatGUID") ?? ""
     let replyToGUID = values.option("replyToGUID") ?? ""
+    let modeRaw = values.option("mode") ?? ""
+    let mode = modeRaw.isEmpty ? nil : MessageSendMode.parse(modeRaw)
+    if !modeRaw.isEmpty && mode == nil {
+      throw IMsgError.invalidSendMode(modeRaw)
+    }
     let hasChatTarget = chatID != nil || !chatIdentifier.isEmpty || !chatGUID.isEmpty
     if hasChatTarget && !recipient.isEmpty {
       throw ParsedValuesError.invalidOption("to")
     }
     if !hasChatTarget && recipient.isEmpty {
       throw ParsedValuesError.missingOption("to")
-    }
-    if !replyToGUID.isEmpty {
-      throw IMsgError.replyToNotSupported("Messages AppleScript does not support reply-to.")
     }
 
     let text = values.option("text") ?? ""
@@ -95,7 +101,8 @@ enum SendCommand {
         region: region,
         chatIdentifier: resolvedChatIdentifier,
         chatGUID: resolvedChatGUID,
-        replyToGUID: replyToGUID
+        replyToGUID: replyToGUID,
+        mode: mode
       ))
 
     if runtime.jsonOutput {

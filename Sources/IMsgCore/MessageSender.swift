@@ -17,6 +17,7 @@ public struct MessageSendOptions: Sendable {
   public var chatIdentifier: String
   public var chatGUID: String
   public var replyToGUID: String
+  public var mode: MessageSendMode?
 
   public init(
     recipient: String,
@@ -26,7 +27,8 @@ public struct MessageSendOptions: Sendable {
     region: String = "US",
     chatIdentifier: String = "",
     chatGUID: String = "",
-    replyToGUID: String = ""
+    replyToGUID: String = "",
+    mode: MessageSendMode? = nil
   ) {
     self.recipient = recipient
     self.text = text
@@ -36,6 +38,7 @@ public struct MessageSendOptions: Sendable {
     self.chatIdentifier = chatIdentifier
     self.chatGUID = chatGUID
     self.replyToGUID = replyToGUID
+    self.mode = mode
   }
 }
 
@@ -57,9 +60,6 @@ public struct MessageSender {
     var resolved = options
     let chatTarget = resolved.chatIdentifier.isEmpty ? resolved.chatGUID : resolved.chatIdentifier
     let useChat = !chatTarget.isEmpty
-    if !resolved.replyToGUID.isEmpty {
-      throw IMsgError.replyToNotSupported("Messages AppleScript does not support reply-to.")
-    }
     if useChat == false {
       if resolved.region.isEmpty { resolved.region = "US" }
       resolved.recipient = normalizer.normalize(resolved.recipient, region: resolved.region)
@@ -68,6 +68,32 @@ public struct MessageSender {
       throw IMsgError.invalidChatTarget("Missing chat identifier or guid")
     }
 
+    let mode = try resolveMode(explicit: resolved.mode)
+    switch mode {
+    case .applescript:
+      try sendViaAppleScript(resolved, chatTarget: chatTarget, useChat: useChat)
+    case .imcore:
+      try IMCoreBackend.send(resolved)
+    case .auto:
+      do {
+        try IMCoreBackend.send(resolved)
+      } catch {
+        if !resolved.replyToGUID.isEmpty {
+          throw error
+        }
+        try sendViaAppleScript(resolved, chatTarget: chatTarget, useChat: useChat)
+      }
+    }
+  }
+
+  private func sendViaAppleScript(
+    _ resolved: MessageSendOptions,
+    chatTarget: String,
+    useChat: Bool
+  ) throws {
+    if !resolved.replyToGUID.isEmpty {
+      throw IMsgError.replyToNotSupported("Messages AppleScript does not support reply-to.")
+    }
     let script = appleScript()
     let arguments = [
       resolved.recipient,
@@ -78,8 +104,19 @@ public struct MessageSender {
       chatTarget,
       useChat ? "1" : "0",
     ]
-
     try runner(script, arguments)
+  }
+
+  private func resolveMode(explicit: MessageSendMode?) throws -> MessageSendMode {
+    if let explicit { return explicit }
+    if let env = ProcessInfo.processInfo.environment["IMSG_SEND_MODE"],
+      let parsed = MessageSendMode.parse(env)
+    {
+      return parsed
+    } else if let env = ProcessInfo.processInfo.environment["IMSG_SEND_MODE"], !env.isEmpty {
+      throw IMsgError.invalidSendMode(env)
+    }
+    return .applescript
   }
 
   private func appleScript() -> String {

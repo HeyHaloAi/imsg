@@ -161,7 +161,12 @@ func sendCommandRejectsMissingRecipient() async {
 func sendCommandRejectsReplyToGuid() async {
   let values = ParsedValues(
     positional: [],
-    options: ["to": ["+15551234567"], "text": ["hi"], "replyToGUID": ["msg-guid-1"]],
+    options: [
+      "to": ["+15551234567"],
+      "text": ["hi"],
+      "replyToGUID": ["msg-guid-1"],
+      "mode": ["applescript"],
+    ],
     flags: []
   )
   let runtime = RuntimeOptions(parsedValues: values)
@@ -178,6 +183,25 @@ func sendCommandRejectsReplyToGuid() async {
   } catch {
     #expect(Bool(false))
   }
+}
+
+@Test
+func sendCommandParsesMode() async throws {
+  let values = ParsedValues(
+    positional: [],
+    options: ["to": ["+15551234567"], "text": ["hi"], "mode": ["imcore"]],
+    flags: []
+  )
+  let runtime = RuntimeOptions(parsedValues: values)
+  var captured: MessageSendOptions?
+  try await SendCommand.run(
+    values: values,
+    runtime: runtime,
+    sendMessage: { options in
+      captured = options
+    }
+  )
+  #expect(captured?.mode == .imcore)
 }
 
 @Test

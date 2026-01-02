@@ -195,12 +195,34 @@ func rpcSendRejectsReplyToGuid() async throws {
   let server = RPCServer(store: store, verbose: false, output: output)
 
   let line =
-    #"{"jsonrpc":"2.0","id":"5","method":"send","params":{"to":"+15551234567","text":"hi","reply_to_guid":"msg-guid-1"}}"#
+    #"{"jsonrpc":"2.0","id":"5","method":"send","params":{"to":"+15551234567","text":"hi","reply_to_guid":"msg-guid-1","send_mode":"applescript"}}"#
   await server.handleLineForTesting(line)
 
   #expect(output.errors.count == 1)
   let error = output.errors[0]["error"] as? [String: Any]
   #expect(int64Value(error?["code"]) == -32602)
+}
+
+@Test
+func rpcSendParsesMode() async throws {
+  let store = try RPCTestDatabase.makeStore()
+  let output = TestRPCOutput()
+  var captured: MessageSendOptions?
+  let server = RPCServer(
+    store: store,
+    verbose: false,
+    output: output,
+    sendMessage: { options in
+      captured = options
+    }
+  )
+
+  let line =
+    #"{"jsonrpc":"2.0","id":"6","method":"send","params":{"to":"+15551234567","text":"hi","send_mode":"imcore"}}"#
+  await server.handleLineForTesting(line)
+
+  #expect(captured?.mode == .imcore)
+  #expect(output.responses.count == 1)
 }
 
 @Test

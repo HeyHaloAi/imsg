@@ -193,6 +193,16 @@ final class RPCServer {
       }
     } catch let err as RPCError {
       output.sendError(id: id, error: err)
+    } catch let err as IMsgError {
+      switch err {
+      case .invalidService, .invalidSendMode, .invalidChatTarget, .replyToNotSupported:
+        output.sendError(
+          id: id,
+          error: RPCError.invalidParams(err.errorDescription ?? "invalid params")
+        )
+      default:
+        output.sendError(id: id, error: RPCError.internalError(err.localizedDescription))
+      }
     } catch {
       output.sendError(id: id, error: RPCError.internalError(error.localizedDescription))
     }
@@ -219,6 +229,11 @@ final class RPCServer {
     let chatIdentifier = stringParam(params["chat_identifier"]) ?? ""
     let chatGUID = stringParam(params["chat_guid"]) ?? ""
     let replyToGUID = stringParam(params["reply_to_guid"]) ?? ""
+    let modeRaw = stringParam(params["send_mode"]) ?? ""
+    let mode = modeRaw.isEmpty ? nil : MessageSendMode.parse(modeRaw)
+    if !modeRaw.isEmpty && mode == nil {
+      throw RPCError.invalidParams("invalid send_mode")
+    }
     let hasChatTarget = chatID != nil || !chatIdentifier.isEmpty || !chatGUID.isEmpty
     let recipient = stringParam(params["to"]) ?? ""
     if hasChatTarget && !recipient.isEmpty {
@@ -226,9 +241,6 @@ final class RPCServer {
     }
     if !hasChatTarget && recipient.isEmpty {
       throw RPCError.invalidParams("to is required for direct sends")
-    }
-    if !replyToGUID.isEmpty {
-      throw RPCError.invalidParams("reply_to_guid not supported for AppleScript sends")
     }
 
     var resolvedChatIdentifier = chatIdentifier
@@ -253,7 +265,8 @@ final class RPCServer {
         region: region,
         chatIdentifier: resolvedChatIdentifier,
         chatGUID: resolvedChatGUID,
-        replyToGUID: replyToGUID
+        replyToGUID: replyToGUID,
+        mode: mode
       )
     )
     respond(id: id, result: ["ok": true])

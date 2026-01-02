@@ -28,6 +28,7 @@ pnpm build
 - `imsg history --chat-id <id> [--limit 50] [--attachments] [--participants +15551234567,...] [--start 2025-01-01T00:00:00Z] [--end 2025-02-01T00:00:00Z] [--json]`
 - `imsg watch [--chat-id <id>] [--since-rowid <n>] [--debounce 250ms] [--attachments] [--participants …] [--start …] [--end …] [--json]`
 - `imsg send --to <handle> [--text "hi"] [--file /path/img.jpg] [--service imessage|sms|auto] [--region US]`
+- `imsg send --to <handle> [--text "hi"] [--file /path/img.jpg] [--mode applescript|imcore|auto]`
 
 ### Quick samples
 ```
@@ -48,16 +49,24 @@ imsg watch --chat-id 1 --attachments --debounce 250ms
 
 # send a picture
 imsg send --to "+14155551212" --text "hi" --file ~/Desktop/pic.jpg --service imessage
+
+# experimental: private IMCore send (reply support)
+IMSG_ALLOW_PRIVATE=1 imsg send --mode imcore --reply-to-guid <guid> --text "reply"
 ```
 
 ## Attachment notes
 `--attachments` prints per-attachment lines with name, MIME, missing flag, and resolved path (tilde expanded). Only metadata is shown; files aren’t copied.
 
+## Send modes
+- `--mode applescript|imcore|auto` to choose backend.
+- `IMSG_SEND_MODE` sets the default mode.
+- `IMSG_ALLOW_PRIVATE=1` required for `imcore`.
+
 ## JSON output
 `imsg chats --json` emits one JSON object per chat with fields: `id`, `name`, `identifier`, `service`, `last_message_at`.
 `imsg history --json` and `imsg watch --json` emit one JSON object per message with fields: `id`, `chat_id`, `guid`, `reply_to_guid`, `sender`, `is_from_me`, `text`, `created_at`, `attachments` (array of metadata with `filename`, `transfer_name`, `uti`, `mime_type`, `total_bytes`, `is_sticker`, `original_path`, `missing`), `reactions`.
 
-Note: `reply_to_guid` is read-only metadata. AppleScript sends cannot create replies.
+Note: `reply_to_guid` is read-only metadata unless you use `--mode imcore` (private API).
 
 ## Permissions troubleshooting
 If you see “unable to open database file” or empty output:

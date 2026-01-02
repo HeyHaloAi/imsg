@@ -171,7 +171,8 @@ func messageSenderRejectsReplyTo() throws {
         attachmentPath: "",
         service: .auto,
         region: "US",
-        replyToGUID: "msg-guid-1"
+        replyToGUID: "msg-guid-1",
+        mode: .applescript
       )
     )
     #expect(Bool(false))
@@ -195,6 +196,10 @@ func errorDescriptionsIncludeDetails() {
   #expect(chatError.errorDescription?.contains("Invalid chat target: bad") == true)
   let replyError = IMsgError.replyToNotSupported("nope")
   #expect(replyError.errorDescription?.contains("Reply-to not supported: nope") == true)
+  let modeError = IMsgError.invalidSendMode("nope")
+  #expect(modeError.errorDescription?.contains("Invalid send mode: nope") == true)
+  let privateError = IMsgError.privateApiFailure("nope")
+  #expect(privateError.errorDescription?.contains("Private API failure: nope") == true)
   let dateError = IMsgError.invalidISODate("2024-99-99")
   #expect(dateError.errorDescription?.contains("Invalid ISO8601 date") == true)
   let scriptError = IMsgError.appleScriptFailure("nope")
