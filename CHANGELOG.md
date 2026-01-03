@@ -2,20 +2,18 @@
 
 ## Unreleased
 
-## 0.3.1 - 2026-01-02
-- feat: include `guid` and `reply_to_guid` metadata in JSON output
-- fix: hide reaction rows from history/watch output and improve reaction matching
-- fix: fill missing sender handles from `destination_caller_id` for outgoing/group messages
-- test: add coverage for sender fallback
-
 ## 0.3.0 - 2026-01-02
 - feat: JSON-RPC server over stdin/stdout (`imsg rpc`) with chats, history, watch, and send
 - feat: group chat metadata in JSON/RPC output (participants, chat identifiers, is_group)
 - feat: tapback + emoji reaction support in JSON output (#8) — thanks @tylerwince
 - enhancement: custom emoji reactions and tapback removal handling
+- feat: include `guid` and `reply_to_guid` metadata in JSON output
+- fix: hide reaction rows from history/watch output and improve reaction matching
+- fix: fill missing sender handles from `destination_caller_id` for outgoing/group messages
 - fix: harden reaction detection
 - docs: add RPC + group chat notes
 - test: expand RPC/command coverage, add reaction fixtures, drop unused stdout helper
+- test: add coverage for sender fallback
 - chore: update copyright year to 2026
 
 ## 0.2.1 - 2025-12-30

@@ -33,7 +33,14 @@ func messagesUseDestinationCallerIDWhenSenderMissing() throws {
   )
   try db.execute("CREATE TABLE handle (ROWID INTEGER PRIMARY KEY, id TEXT);")
   try db.execute("CREATE TABLE chat_message_join (chat_id INTEGER, message_id INTEGER);")
-  try db.execute("CREATE TABLE message_attachment_join (message_id INTEGER, attachment_id INTEGER);")
+  try db.execute(
+    """
+    CREATE TABLE message_attachment_join (
+      message_id INTEGER,
+      attachment_id INTEGER
+    );
+    """
+  )
 
   try db.run(
     """

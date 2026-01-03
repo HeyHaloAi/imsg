@@ -275,9 +275,6 @@ func messagesReplyToGuidHandlesNoPrefix() throws {
   #expect(reply?.replyToGUID == "msg-guid-1")
 }
 
-
-
-
 @Test
 func attachmentsByMessageReturnsMetadata() throws {
   let store = try TestDatabase.makeStore()

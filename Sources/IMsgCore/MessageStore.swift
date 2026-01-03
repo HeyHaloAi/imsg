@@ -30,7 +30,9 @@ public final class MessageStore: @unchecked Sendable {
       self.connection.busyTimeout = 5
       self.hasAttributedBody = MessageStore.detectAttributedBody(connection: self.connection)
       self.hasReactionColumns = MessageStore.detectReactionColumns(connection: self.connection)
-      self.hasDestinationCallerID = MessageStore.detectDestinationCallerID(connection: self.connection)
+      self.hasDestinationCallerID = MessageStore.detectDestinationCallerID(
+        connection: self.connection
+      )
     } catch {
       throw MessageStore.enhance(error: error, path: normalized)
     }
@@ -184,7 +186,10 @@ public final class MessageStore: @unchecked Sendable {
         let attachments = intValue(row[11]) ?? 0
         let body = dataValue(row[12])
         let resolvedText = text.isEmpty ? TypedStreamParser.parseAttributedBody(body) : text
-        let replyToGUID = replyToGUID(associatedGuid: associatedGuid, associatedType: associatedType)
+        let replyToGUID = replyToGUID(
+          associatedGuid: associatedGuid,
+          associatedType: associatedType
+        )
         messages.append(
           Message(
             rowID: rowID,
@@ -254,7 +259,10 @@ public final class MessageStore: @unchecked Sendable {
         let attachments = intValue(row[12]) ?? 0
         let body = dataValue(row[13])
         let resolvedText = text.isEmpty ? TypedStreamParser.parseAttributedBody(body) : text
-        let replyToGUID = replyToGUID(associatedGuid: associatedGuid, associatedType: associatedType)
+        let replyToGUID = replyToGUID(
+          associatedGuid: associatedGuid,
+          associatedType: associatedType
+        )
         messages.append(
           Message(
             rowID: rowID,
