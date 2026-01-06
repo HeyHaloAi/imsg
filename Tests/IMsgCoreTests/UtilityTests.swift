@@ -139,7 +139,7 @@ func messageSenderBuildsArguments() throws {
 }
 
 @Test
-func messageSenderUsesChatIdentifier() throws {
+func messageSenderUsesChatGuidWhenProvided() throws {
   var captured: [String] = []
   let sender = MessageSender(runner: { _, args in
     captured = args
@@ -155,7 +155,7 @@ func messageSenderUsesChatIdentifier() throws {
       chatGUID: "ignored-guid"
     )
   )
-  #expect(captured[5] == "iMessage;+;chat123")
+  #expect(captured[5] == "ignored-guid")
   #expect(captured[6] == "1")
   #expect(captured[4] == "1")
 }

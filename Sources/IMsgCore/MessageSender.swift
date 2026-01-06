@@ -51,7 +51,7 @@ public struct MessageSender {
 
   public func send(_ options: MessageSendOptions) throws {
     var resolved = options
-    let chatTarget = resolved.chatIdentifier.isEmpty ? resolved.chatGUID : resolved.chatIdentifier
+    let chatTarget = resolved.chatGUID.isEmpty ? resolved.chatIdentifier : resolved.chatGUID
     let useChat = !chatTarget.isEmpty
     if useChat == false {
       if resolved.region.isEmpty { resolved.region = "US" }
