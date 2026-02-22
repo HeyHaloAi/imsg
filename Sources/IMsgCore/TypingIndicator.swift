@@ -7,7 +7,6 @@ import Foundation
 ///
 /// Requires macOS 14+, Messages.app signed in, and an existing conversation with the contact.
 public struct TypingIndicator: Sendable {
-  private static let daemonConnectionTracker = DaemonConnectionTracker()
 
   /// Start showing the typing indicator for a chat.
   /// - Parameter chatIdentifier: e.g. `"iMessage;-;+14155551212"` or a chat GUID.
@@ -97,19 +96,8 @@ public struct TypingIndicator: Sendable {
     }
 
     if hasLiveDaemonConnection(controller) {
-      daemonConnectionTracker.lock.lock()
-      daemonConnectionTracker.hasAttemptedConnection = true
-      daemonConnectionTracker.lock.unlock()
       return
     }
-
-    daemonConnectionTracker.lock.lock()
-    let shouldAttemptConnection = !daemonConnectionTracker.hasAttemptedConnection
-    if shouldAttemptConnection {
-      daemonConnectionTracker.hasAttemptedConnection = true
-    }
-    daemonConnectionTracker.lock.unlock()
-    if !shouldAttemptConnection { return }
 
     let connectSel = sel_registerName("connectToDaemon")
     if controller.responds(to: connectSel) {
@@ -166,7 +154,3 @@ public struct TypingIndicator: Sendable {
   }
 }
 
-private final class DaemonConnectionTracker: @unchecked Sendable {
-  let lock = NSLock()
-  var hasAttemptedConnection = false
-}

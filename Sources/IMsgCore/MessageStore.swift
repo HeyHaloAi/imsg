@@ -1,7 +1,7 @@
 import Foundation
 import SQLite
 
-public final class MessageStore: @unchecked Sendable {
+public actor MessageStore {
   public static let appleEpochOffset: TimeInterval = 978_307_200
 
   public static var defaultPath: String {
@@ -12,8 +12,6 @@ public final class MessageStore: @unchecked Sendable {
   public let path: String
 
   private let connection: Connection
-  private let queue: DispatchQueue
-  private let queueKey = DispatchSpecificKey<Void>()
   let hasAttributedBody: Bool
   let hasReactionColumns: Bool
   let hasThreadOriginatorGUIDColumn: Bool
@@ -24,8 +22,6 @@ public final class MessageStore: @unchecked Sendable {
   public init(path: String = MessageStore.defaultPath) throws {
     let normalized = NSString(string: path).expandingTildeInPath
     self.path = normalized
-    self.queue = DispatchQueue(label: "imsg.db", qos: .userInitiated)
-    self.queue.setSpecific(key: queueKey, value: ())
     do {
       let uri = URL(fileURLWithPath: normalized).absoluteString
       let location = Connection.Location.uri(uri, parameters: [.mode(.readOnly)])
@@ -58,8 +54,6 @@ public final class MessageStore: @unchecked Sendable {
     hasAttachmentUserInfo: Bool? = nil
   ) throws {
     self.path = path
-    self.queue = DispatchQueue(label: "imsg.db.test", qos: .userInitiated)
-    self.queue.setSpecific(key: queueKey, value: ())
     self.connection = connection
     self.connection.busyTimeout = 5
     let messageColumns = MessageStore.tableColumns(connection: connection, table: "message")
@@ -96,9 +90,9 @@ public final class MessageStore: @unchecked Sendable {
     }
   }
 
-  public func listChats(limit: Int) throws -> [Chat] {
+  public func listChats(limit: Int) async throws -> [Chat] {
     let sql = """
-      SELECT c.ROWID, IFNULL(c.display_name, c.chat_identifier) AS name, c.chat_identifier, c.service_name,
+      SELECT c.ROWID, CASE WHEN IFNULL(c.display_name, '') = '' THEN c.chat_identifier ELSE c.display_name END AS name, c.chat_identifier, c.service_name,
              MAX(m.date) AS last_date
       FROM chat c
       JOIN chat_message_join cmj ON c.ROWID = cmj.chat_id
@@ -123,10 +117,10 @@ public final class MessageStore: @unchecked Sendable {
     }
   }
 
-  public func chatInfo(chatID: Int64) throws -> ChatInfo? {
+  public func chatInfo(chatID: Int64) async throws -> ChatInfo? {
     let sql = """
       SELECT c.ROWID, IFNULL(c.chat_identifier, '') AS identifier, IFNULL(c.guid, '') AS guid,
-             IFNULL(c.display_name, c.chat_identifier) AS name, IFNULL(c.service_name, '') AS service
+             CASE WHEN IFNULL(c.display_name, '') = '' THEN c.chat_identifier ELSE c.display_name END AS name, IFNULL(c.service_name, '') AS service
       FROM chat c
       WHERE c.ROWID = ?
       LIMIT 1
@@ -150,7 +144,51 @@ public final class MessageStore: @unchecked Sendable {
     }
   }
 
-  public func participants(chatID: Int64) throws -> [String] {
+  public func chatInfo(chatIdentifier: String?, chatGUID: String?) async throws -> ChatInfo? {
+    let identifier = chatIdentifier?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    let guid = chatGUID?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+    guard identifier.isEmpty == false || guid.isEmpty == false else { return nil }
+
+    var clauses: [String] = []
+    var bindings: [Binding?] = []
+    if identifier.isEmpty == false {
+      clauses.append("c.chat_identifier = ?")
+      bindings.append(identifier)
+    }
+    if guid.isEmpty == false {
+      clauses.append("c.guid = ?")
+      bindings.append(guid)
+    }
+
+    let sql = """
+      SELECT c.ROWID, IFNULL(c.chat_identifier, '') AS identifier, IFNULL(c.guid, '') AS guid,
+             CASE WHEN IFNULL(c.display_name, '') = '' THEN c.chat_identifier ELSE c.display_name END AS name, IFNULL(c.service_name, '') AS service
+      FROM chat c
+      WHERE (
+        \(clauses.joined(separator: " OR "))
+      )
+      LIMIT 1
+      """
+    return try withConnection { db in
+      for row in try db.prepare(sql, bindings) {
+        let id = int64Value(row[0]) ?? 0
+        let resolvedIdentifier = stringValue(row[1])
+        let resolvedGuid = stringValue(row[2])
+        let name = stringValue(row[3])
+        let service = stringValue(row[4])
+        return ChatInfo(
+          id: id,
+          identifier: resolvedIdentifier,
+          guid: resolvedGuid,
+          name: name,
+          service: service
+        )
+      }
+      return nil
+    }
+  }
+
+  public func participants(chatID: Int64) async throws -> [String] {
     let sql = """
       SELECT h.id
       FROM chat_handle_join chj
@@ -173,17 +211,68 @@ public final class MessageStore: @unchecked Sendable {
   }
 
   func withConnection<T>(_ block: (Connection) throws -> T) throws -> T {
-    if DispatchQueue.getSpecific(key: queueKey) != nil {
-      return try block(connection)
+    try block(connection)
+  }
+
+  /// Checks whether a handle has an **active** iMessage chat.
+  ///
+  /// A handle is considered iMessage-capable when it has a chat with
+  /// `service_name = 'iMessage'` AND at least one successfully
+  /// delivered message (`is_delivered = 1` or `is_sent = 1` with
+  /// `error = 0`) within the last 365 days.  Old or failed-only chats
+  /// are treated as stale / deregistered.
+  public func hasImessageChat(handle: String) throws -> Bool {
+    let normalized = handle
+      .replacingOccurrences(of: " ", with: "")
+      .replacingOccurrences(of: "-", with: "")
+      .replacingOccurrences(of: "(", with: "")
+      .replacingOccurrences(of: ")", with: "")
+    // 365 days ago in Apple's nanosecond epoch
+    let cutoff = (Date().timeIntervalSinceReferenceDate - 365 * 86400) * 1_000_000_000
+    let sql = """
+      SELECT COUNT(*) FROM chat c
+      JOIN chat_message_join cmj ON c.ROWID = cmj.chat_id
+      JOIN message m ON m.ROWID = cmj.message_id
+      WHERE c.chat_identifier = ?
+        AND c.service_name = 'iMessage'
+        AND m.date > ?
+        AND m.error = 0
+        AND (m.is_delivered = 1 OR m.is_sent = 1)
+      LIMIT 1
+      """
+    return try withConnection { db in
+      for row in try db.prepare(sql, normalized, Int64(cutoff)) {
+        return (int64Value(row[0]) ?? 0) > 0
+      }
+      return false
     }
-    return try queue.sync {
-      try block(connection)
+  }
+
+  /// Finds the first iMessage-capable handle from a list of candidates.
+  ///
+  /// Returns the handle that has an active iMessage chat, or `nil` if
+  /// none of the candidates are iMessage-capable.
+  public func firstImessageHandle(from candidates: [String]) throws -> String? {
+    guard candidates.isEmpty == false else { return nil }
+    let placeholders = candidates.map { _ in "?" }.joined(separator: ", ")
+    let sql = """
+      SELECT chat_identifier FROM chat
+      WHERE chat_identifier IN (\(placeholders)) AND service_name = 'iMessage'
+      LIMIT 1
+      """
+    return try withConnection { db in
+      let bindings: [Binding?] = candidates.map { $0 as Binding? }
+      for row in try db.prepare(sql, bindings) {
+        let result = stringValue(row[0])
+        return result.isEmpty ? nil : result
+      }
+      return nil
     }
   }
 }
 
 extension MessageStore {
-  public func attachments(for messageID: Int64) throws -> [AttachmentMeta] {
+  public func attachments(for messageID: Int64) async throws -> [AttachmentMeta] {
     let sql = """
       SELECT a.filename, a.transfer_name, a.uti, a.mime_type, a.total_bytes, a.is_sticker
       FROM message_attachment_join maj
@@ -257,14 +346,14 @@ extension MessageStore {
     }
   }
 
-  public func maxRowID() throws -> Int64 {
+  public func maxRowID() async throws -> Int64 {
     return try withConnection { db in
       let value = try db.scalar("SELECT MAX(ROWID) FROM message")
       return int64Value(value) ?? 0
     }
   }
 
-  public func reactions(for messageID: Int64) throws -> [Reaction] {
+  public func reactions(for messageID: Int64) async throws -> [Reaction] {
     guard hasReactionColumns else { return [] }
     // Reactions are stored as messages with associated_message_type in range 2000-2006
     // 2000-2005 are standard tapbacks, 2006 is custom emoji reactions

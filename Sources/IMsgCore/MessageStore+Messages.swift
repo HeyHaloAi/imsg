@@ -38,11 +38,11 @@ private struct DecodedMessageRow {
 }
 
 extension MessageStore {
-  public func messages(chatID: Int64, limit: Int) throws -> [Message] {
-    return try messages(chatID: chatID, limit: limit, filter: nil)
+  public func messages(chatID: Int64, limit: Int) async throws -> [Message] {
+    return try await messages(chatID: chatID, limit: limit, filter: nil)
   }
 
-  public func messages(chatID: Int64, limit: Int, filter: MessageFilter?) throws -> [Message] {
+  public func messages(chatID: Int64, limit: Int, filter: MessageFilter?) async throws -> [Message] {
     let bodyColumn = hasAttributedBody ? "m.attributedBody" : "NULL"
     let guidColumn = hasReactionColumns ? "m.guid" : "NULL"
     let associatedGuidColumn = hasReactionColumns ? "m.associated_message_guid" : "NULL"
@@ -144,8 +144,8 @@ extension MessageStore {
     }
   }
 
-  public func messagesAfter(afterRowID: Int64, chatID: Int64?, limit: Int) throws -> [Message] {
-    return try messagesAfter(
+  public func messagesAfter(afterRowID: Int64, chatID: Int64?, limit: Int) async throws -> [Message] {
+    return try await messagesAfter(
       afterRowID: afterRowID,
       chatID: chatID,
       limit: limit,
@@ -158,7 +158,7 @@ extension MessageStore {
     chatID: Int64?,
     limit: Int,
     includeReactions: Bool
-  ) throws -> [Message] {
+  ) async throws -> [Message] {
     let bodyColumn = hasAttributedBody ? "m.attributedBody" : "NULL"
     let guidColumn = hasReactionColumns ? "m.guid" : "NULL"
     let associatedGuidColumn = hasReactionColumns ? "m.associated_message_guid" : "NULL"

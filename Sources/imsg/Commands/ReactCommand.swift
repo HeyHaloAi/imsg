@@ -66,15 +66,13 @@ enum ReactCommand {
       throw IMsgError.chatNotFound(chatID: chatID)
     }
 
-    let chatLookup = preferredChatLookup(chatInfo: chatInfo)
-
     // Send the reaction via AppleScript + System Events
-    try sendReaction(
+    let (script, arguments) = ReactionScriptBuilder.build(
       reactionType: reactionType,
       chatGUID: chatInfo.guid,
-      chatLookup: chatLookup,
-      appleScriptRunner: appleScriptRunner
+      chatLookup: ReactionScriptBuilder.preferredChatLookup(chatInfo: chatInfo)
     )
+    try appleScriptRunner(script, arguments)
 
     if runtime.jsonOutput {
       let result = ReactResult(
@@ -87,100 +85,6 @@ enum ReactCommand {
     } else {
       print("Sent \(reactionType.emoji) reaction to chat \(chatID)")
     }
-  }
-
-  private static func sendReaction(
-    reactionType: ReactionType,
-    chatGUID: String,
-    chatLookup: String,
-    appleScriptRunner: @escaping (String, [String]) throws -> Void
-  ) throws {
-    let keyNumber: Int
-    switch reactionType {
-    case .love: keyNumber = 1
-    case .like: keyNumber = 2
-    case .dislike: keyNumber = 3
-    case .laugh: keyNumber = 4
-    case .emphasis: keyNumber = 5
-    case .question: keyNumber = 6
-    case .custom:
-      let script = """
-        on run argv
-          set chatGUID to item 1 of argv
-          set chatLookup to item 2 of argv
-          set customEmoji to item 3 of argv
-
-          tell application "Messages"
-            activate
-            set targetChat to chat id chatGUID
-          end tell
-
-          delay 0.3
-
-          tell application "System Events"
-            tell process "Messages"
-              keystroke "f" using command down
-              delay 0.15
-              keystroke "a" using command down
-              keystroke chatLookup
-              delay 0.25
-              key code 36
-              delay 0.35
-              keystroke "t" using command down
-              delay 0.2
-              keystroke customEmoji
-              delay 0.1
-              key code 36
-            end tell
-          end tell
-        end run
-        """
-      try appleScriptRunner(script, [chatGUID, chatLookup, reactionType.emoji])
-      return
-    }
-
-    let script = """
-      on run argv
-        set chatGUID to item 1 of argv
-        set chatLookup to item 2 of argv
-        set reactionKey to item 3 of argv
-
-        tell application "Messages"
-          activate
-          set targetChat to chat id chatGUID
-        end tell
-
-        delay 0.3
-
-        tell application "System Events"
-          tell process "Messages"
-            keystroke "f" using command down
-            delay 0.15
-            keystroke "a" using command down
-            keystroke chatLookup
-            delay 0.25
-            key code 36
-            delay 0.35
-            keystroke "t" using command down
-            delay 0.2
-            keystroke reactionKey
-          end tell
-        end tell
-      end run
-      """
-    try appleScriptRunner(script, [chatGUID, chatLookup, "\(keyNumber)"])
-  }
-
-  private static func preferredChatLookup(chatInfo: ChatInfo) -> String {
-    let preferred = chatInfo.name.trimmingCharacters(in: .whitespacesAndNewlines)
-    if !preferred.isEmpty {
-      return preferred
-    }
-    let identifier = chatInfo.identifier.trimmingCharacters(in: .whitespacesAndNewlines)
-    if !identifier.isEmpty {
-      return identifier
-    }
-    return chatInfo.guid
   }
 
   private static func isSingleEmoji(_ value: String) -> Bool {

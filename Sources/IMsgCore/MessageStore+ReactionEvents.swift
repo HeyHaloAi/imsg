@@ -53,7 +53,7 @@ public struct ReactionEvent: Sendable, Equatable {
 extension MessageStore {
   /// Fetch reaction events (add/remove) after a given rowID.
   /// These are the reaction messages themselves, useful for streaming reaction events in watch mode.
-  public func reactionEventsAfter(afterRowID: Int64, chatID: Int64?, limit: Int) throws
+  public func reactionEventsAfter(afterRowID: Int64, chatID: Int64?, limit: Int) async throws
     -> [ReactionEvent]
   {
     guard hasReactionColumns else { return [] }
